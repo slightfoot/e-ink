@@ -36,7 +36,18 @@ class MonoBitmap {
       throw Exception('Bitmap image corrupt: ${header.offset + info.sizeImage} > ${file.length}');
     }
     final data = ptr.elementAt(header.offset).asTypedList(info.sizeImage);
-    return MonoBitmap(header, info, data);
+
+    // Bitmap files are stored bottom-to-top (as such the last row of the image is at the top)
+    // We need to flip the rows around in the raw data as we use it top-to-bottom.
+    final flipped = Uint8List(info.sizeImage);
+    final strideInBytes = info.width ~/ 8; // 1bit per pixel
+    for (int y = 0; y < info.height; y++) {
+      final from = (info.height - y - 1) * strideInBytes;
+      final to = y * strideInBytes;
+      flipped.setRange(to, to + strideInBytes, data.getRange(from, from + strideInBytes));
+    }
+
+    return MonoBitmap(header, info, flipped);
   }
 }
 

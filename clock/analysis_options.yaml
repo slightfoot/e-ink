@@ -18,6 +18,8 @@ include: package:lints/recommended.yaml
 linter:
   rules:
     constant_identifier_names: false
+    unawaited_futures: true
+    prefer_single_quotes: true
 
 # analyzer:
 #   exclude:

@@ -8,24 +8,25 @@ void main(List<String> args) {
   final red = MonoBitmap.loadAsset('assets/red.bmp');
   print('finished loading.');
   final display = EPaperDisplay();
-  ProcessSignal.sigint.watch().listen((event) {
+  final sig = ProcessSignal.sigint.watch().listen((event) {
     print('Ctrl+C pressed');
-    display.sleep();
-    display.close();
+    // display.sleep();
+    // display.close();
+    exit(-1);
   });
   try {
-    display.init();
+    display.open();
     display.clear();
-    display.delayMs(500);
+    display.delayMs(100);
     display.clearBlack();
-    display.delayMs(500);
+    display.delayMs(100);
     display.display(black.data, red.data);
-    display.delayMs(1000);
-    //display.clear();
+    display.delayMs(200);
+    display.clear();
   } finally {
-    //display.sleep();
+    display.sleep();
     display.close();
   }
-
-  print('done');
+  print('done main');
+  sig.cancel();
 }
