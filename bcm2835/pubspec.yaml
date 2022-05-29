@@ -1,0 +1,59 @@
+name: bcm2835
+description: Dart library for Broadcom BCM 2835 as used in Raspberry Pi
+version: 1.71.0
+
+environment:
+  sdk: '>=2.15.0 <3.0.0'
+
+dependencies:
+  ffi: ^1.2.1
+
+dev_dependencies:
+  lints: ^2.0.0
+  ffigen: ^5.0.0
+
+# execute with: dart run ffigen
+ffigen:
+  name: Bcm2835
+  description: BCM2835 Library
+  output: 'lib/src/generated_bindings.dart'
+  headers:
+    entry-points:
+      - 'native/bcm2835.h'
+  preamble: |
+    // ignore_for_file: non_constant_identifier_names, constant_identifier_names
+  functions:
+    rename:
+      'bcm2835_(.*)': '$1'
+    include:
+      - bcm2835_.*
+    exclude:
+      - _.*
+  enums:
+    rename:
+      'bcm2835(.*)': '$1'
+    member-rename:
+      '.*':
+        'BCM2835_(.*)': '$1'
+    exclude:
+      - _.*
+  typedefs:
+    rename:
+      'off_t': 'MemoryOffset'
+    exclude:
+      - _.*
+  structs:
+    exclude:
+      - _.*
+  unions:
+    exclude:
+      - _.*
+  macros:
+    include:
+      - LOW
+      - HIGH
+    exclude:
+      - _.*
+  globals:
+    exclude:
+      - _.*
