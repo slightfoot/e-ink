@@ -36,6 +36,7 @@ class EPaperDisplay {
 
   //------------------------------------------------------------------------------------------------
 
+  /// Initial setup of our class and access the device.
   void _init() {
     print('init');
 
@@ -71,6 +72,7 @@ class EPaperDisplay {
     bcm2835.spi_setChipSelectPolarity(SPIChipSelect.SPI_CS0, LOW);
   }
 
+  /// Closes the connection to the device and cleans up.
   void close() {
     bcm2835.spi_end();
 
@@ -94,7 +96,7 @@ class EPaperDisplay {
 
   /// Writes a single byte to the SPI bus and asserts the CS pin.
   void _spiWriteByte(int value) {
-    bcm2835.spi_transfer(value);
+    bcm2835.spi_transfer(value & 0xff);
   }
 
   /// Writes a series of byte to the SPI bus and asserts the CS pin for each.
@@ -109,26 +111,16 @@ class EPaperDisplay {
 
   //------------------------------------------------------------------------------------------------
 
-  /// Software reset the panel
-  void reset() {
-    _digitalWrite(EPD_RST_PIN, true);
-    delayMs(20);
-    _digitalWrite(EPD_RST_PIN, false);
-    delayMs(20);
-    _digitalWrite(EPD_RST_PIN, true);
-    delayMs(20);
-  }
-
   /// Send command to the panel
-  void sendCommand(int register) {
-    print('sendCommand ${register.toRadixString(16).padLeft(2, '0')}');
+  void sendCommand(EpdCommand command) {
+    print('sendCommand $command');
     _digitalWrite(EPD_DC_PIN, false);
     // _digitalWrite(EPD_CS_PIN, false);
-    _spiWriteByte(register);
+    _spiWriteByte(command.register);
     // _digitalWrite(EPD_CS_PIN, true);
   }
 
-  /// Send data to the panel
+  /// Send single [data] byte to the panel
   void sendData(int data) {
     print('sendData ${data.toRadixString(16).padLeft(2, '0')}');
     _digitalWrite(EPD_DC_PIN, true);
@@ -137,11 +129,13 @@ class EPaperDisplay {
     // _digitalWrite(EPD_CS_PIN, true);
   }
 
+  /// Send buffer of data filled with the same [data] value of [length] bytes.
   void sendDataFilled(int data, int length) {
     _digitalWrite(EPD_DC_PIN, true);
     _spiWriteBytes(List.filled(length, data));
   }
 
+  /// Send multi bytes of [data]
   void sendDataMulti(List<int> data) {
     _digitalWrite(EPD_DC_PIN, true);
     _spiWriteBytes(data);
@@ -151,12 +145,10 @@ class EPaperDisplay {
   void waitUntilIdle() {
     print('waitUntilIdle');
     int waited = 0;
-    do {
-      delayMs(5);
-      waited += 5;
-    } while (!_digitalRead(EPD_BUSY_PIN));
-    // delayMs(5);
-
+    while (!_digitalRead(EPD_BUSY_PIN)) {
+      delayMs(1);
+      waited++;
+    }
     // if (retries == 0) {
     //   throw Exception('Timed out waiting');
     // }
@@ -165,191 +157,386 @@ class EPaperDisplay {
 
   //------------------------------------------------------------------------------------------------
 
-  /// Send LUT
-  void _sendLut(List<int> vcom, List<int> ww, List<int> bw, List<int> wb, List<int> bb) {
-    sendCommand(0x20); // VCOM
-    sendDataMulti(vcom);
-    sendCommand(0x21); // LUT_WW
-    sendDataMulti(ww);
-    sendCommand(0x22); // LUT_BW
-    sendDataMulti(bw);
-    sendCommand(0x23); // LUT_WB
-    sendDataMulti(wb);
-    sendCommand(0x24); // LUT_BB
-    sendDataMulti(bb);
-  }
-
-  // Turn on the display
-  void turnOnDisplay() {
-    print('turnOnDisplay');
-    sendCommand(0x12); // DISPLAY REFRESH
-    delayMs(100); // The delay here is necessary for at least 200uS!!!
-    waitUntilIdle();
+  /// Software reset the panel
+  void reset() {
+    _digitalWrite(EPD_RST_PIN, false);
+    delayMs(200);
+    _digitalWrite(EPD_RST_PIN, true);
+    delayMs(200);
   }
 
   /// Initialize the e-Paper registers
-  void open() {
+  void init() {
+    print('init');
+
     reset();
 
-    print('open');
+    // sendCommand(EpdCommand.POWER_SETTING);
+    // sendData(0x07);
+    // sendData(0x07); // VGH =  20V, VGL = -20V
+    // sendData(0x3f); // VDH =  15V
+    // sendData(0x3f); // VDL = -15V
+    // sendData(0x11); // VSHR
 
-    // sendCommand(0x01);			//POWER SETTING
-    // EPD_SendData(0x07);
-    // EPD_SendData(0x07);		//VGH=20V,VGL=-20V
-    // EPD_SendData(0x3f);		//VDH=15V
-    // EPD_SendData(0x3f);		//VDL=-15V
+    // sendCommand(EpdCommand.POWER_SETTING);
+    // sendData(0x17); // 1-0=11: internal power
+    // sendData(0x17); // VGH & VGL
+    // sendData(0x3f); // VSH
+    // sendData(0x3f); // VSL
+    // sendData(0x11); // VSHR
 
-    sendCommand(0x01); // power setting
-    sendData(0x17); // 1-0=11: internal power
-    sendData(Voltage_Frame_7IN5_V2[6]); // VGH&VGL
-    sendData(Voltage_Frame_7IN5_V2[1]); // VSH
-    sendData(Voltage_Frame_7IN5_V2[2]); //  VSL
-    sendData(Voltage_Frame_7IN5_V2[3]); //  VSHR
+    sendCommand(EpdCommand.POWER_SETTING);
+    sendData(0x03); // VDS_EN, VDG_EN
+    sendData(0x00); // VCOM_HV, VGHL_LV[1], VGHL_LV[0]
+    sendData(0x2b); // VDH
+    sendData(0x2b); // VDL
+    sendData(0xff); // VDHR
 
-    sendCommand(0x82); // VCOM DC Setting
-    sendData(Voltage_Frame_7IN5_V2[4]); // VCOM
+    // sendCommand(EpdCommand.VCM_DC_SETTING);
+    // sendData(0x24); // VCOM
 
-    sendCommand(0x06); // Booster Setting
-    sendData(0x27);
-    sendData(0x27);
-    sendData(0x2F);
+    // sendCommand(EpdCommand.BOOSTER_SOFT_START);
+    // sendData(0x27);
+    // sendData(0x27);
+    // sendData(0x2F);
+    // sendData(0x17);
+
+    sendCommand(EpdCommand.BOOSTER_SOFT_START);
+    sendData(0x17);
+    sendData(0x17);
     sendData(0x17);
 
-    sendCommand(0x30); // OSC Setting
-    sendData(Voltage_Frame_7IN5_V2[0]); // 2-0=100: N=4  ; 5-3=111: M=7  ;  3C=50Hz     3A=100HZ
+    sendCommand(EpdCommand.POWER_ON);
+    // delayMs(100);
+    waitUntilIdle();
 
-    sendCommand(0x04); // POWER ON
+    sendCommand(EpdCommand.PANEL_SETTING);
+    sendData(0x3f); //KW-3f   KWR-2F	BWR-OTP 0f	BW-OTP 1f
+
+    sendCommand(EpdCommand.PLL_CONTROL);
+    sendData(0x3c); // 2-0 = 100: N=4; 5-3 = 111: M=7;  3C = 50Hz 3A = 100HZ
+
+    // sendCommand(EpdCommand.DUAL_SPI);
+    // sendData(0x00);
+
+    // sendCommand(EpdCommand.VCOM_AND_DATA_INTERVAL_SETTING);
+    // sendData(0x10);
+    // sendData(0x00);
+
+    // sendCommand(EpdCommand.TCON_SETTING);
+    // sendData(0x22);
+
+    // sendCommand(EpdCommand.GSST_SETTING);
+    // sendData(0x00);
+    // sendData(0x00); //800*480
+    // sendData(0x00);
+    // sendData(0x00);
+
+    setLut();
+  }
+
+  /// Set the Look-Up-Tables
+  void setLut() {
+    // sendCommand(EpdCommand.LUT_FOR_VCOM);
+    // sendDataMulti(lut_vcom0);
+    // sendCommand(EpdCommand.LUT_WHITE_TO_WHITE);
+    // sendDataMulti(lut_ww);
+    // sendCommand(EpdCommand.LUT_BLACK_TO_WHITE);
+    // sendDataMulti(lut_bw);
+    // sendCommand(EpdCommand.LUT_WHITE_TO_BLACK);
+    // sendDataMulti(lut_wb);
+    // sendCommand(EpdCommand.LUT_BLACK_TO_BLACK);
+    // sendDataMulti(lut_bb);
+  }
+
+  /// Set the Look-Up-Tables for quick display (partial refresh)
+  void setLutQuick() {
+    sendCommand(EpdCommand.LUT_FOR_VCOM);
+    sendDataMulti(lut_vcom0_quick);
+    sendCommand(EpdCommand.LUT_WHITE_TO_WHITE);
+    sendDataMulti(lut_ww_quick);
+    sendCommand(EpdCommand.LUT_BLACK_TO_WHITE);
+    sendDataMulti(lut_bw_quick);
+    sendCommand(EpdCommand.LUT_WHITE_TO_BLACK);
+    sendDataMulti(lut_wb_quick);
+    sendCommand(EpdCommand.LUT_BLACK_TO_BLACK);
+    sendDataMulti(lut_bb_quick);
+  }
+
+  /// Set the resolution
+  void setResolution(int width, int height) {
+    sendCommand(EpdCommand.RESOLUTION_SETTING);
+    sendData(width >> 8);
+    sendData(width & 0xff);
+    sendData(height >> 8);
+    sendData(height & 0xff);
+  }
+
+  /// Refresh and displays a frame
+  void displayFrameBuffer([List<int>? frameBuffer]) {
+    setResolution(EPD_WIDTH, EPD_HEIGHT);
+
+    sendCommand(EpdCommand.VCM_DC_SETTING);
+    sendData(0x12);
+
+    // sendCommand(EpdCommand.VCOM_AND_DATA_INTERVAL_SETTING);
+    // sendData(0x97);    //VBDF 17|D7 VBDW 97  VBDB 57  VBDF F7  VBDW 77  VBDB 37  VBDR B7
+
+    if (frameBuffer != null) {
+      sendCommand(EpdCommand.DATA_START_TRANSMISSION_1);
+      int length = (EPD_WIDTH / 8).ceil() * EPD_HEIGHT;
+      sendDataFilled(0xff, length); // bit set: white, bit reset: black
+      delayMs(2);
+      sendCommand(EpdCommand.DATA_START_TRANSMISSION_2);
+      sendDataMulti(frameBuffer);
+      delayMs(2);
+    }
+
+    displayFrame();
+  }
+
+  // /// Sends the image buffer in RAM to e-Paper and displays
+  // void display(List<int> black, List<int> red) {
+  //   print('display');
+  //   int length = (EPD_WIDTH / 8).ceil() * EPD_HEIGHT;
+  //   if (black.length != length || red.length != length) {
+  //     throw Exception();
+  //   }
+  //   sendCommand(EpdCommand.DATA_START_TRANSMISSION_1);
+  //   sendDataMulti(black);
+  //   sendCommand(EpdCommand.DATA_START_TRANSMISSION_2);
+  //   sendDataMulti(red);
+  //   displayFrame();
+  // }
+
+  // Clear the frame data from the SRAM (this won't refresh the display!)
+  void clearFrame() {
+    setResolution(EPD_WIDTH, EPD_HEIGHT);
+    int length = (EPD_WIDTH / 8).ceil() * EPD_HEIGHT;
+    sendCommand(EpdCommand.DATA_START_TRANSMISSION_1);
+    delayMs(2);
+    sendDataFilled(0xff, length);
+    delayMs(2);
+    sendCommand(EpdCommand.DATA_START_TRANSMISSION_2);
+    delayMs(2);
+    sendDataFilled(0xff, length);
+    delayMs(2);
+  }
+
+  // /// Clear screen
+  // void clear() {
+  //   print('clear');
+  //   int length = (EPD_WIDTH / 8).ceil() * EPD_HEIGHT;
+  //   sendCommand(EpdCommand.DATA_START_TRANSMISSION_1);
+  //   sendDataFilled(0xFF, length);
+  //   sendCommand(EpdCommand.DATA_START_TRANSMISSION_2);
+  //   sendDataFilled(0x00, length);
+  //   displayFrame();
+  // }
+  //
+  // /// Clear Black screen
+  // void clearBlack() {
+  //   print('clearBlack');
+  //   int length = (EPD_WIDTH / 8).ceil() * EPD_HEIGHT;
+  //   sendCommand(EpdCommand.DATA_START_TRANSMISSION_1);
+  //   sendDataFilled(0x00, length);
+  //   sendCommand(EpdCommand.DATA_START_TRANSMISSION_2);
+  //   sendDataFilled(0xFF, length);
+  //   displayFrame();
+  // }
+
+  /// This displays the frame data from SRAM
+  void displayFrame() {
+    setLut();
+    sendCommand(EpdCommand.DISPLAY_REFRESH);
     delayMs(100);
     waitUntilIdle();
-
-    sendCommand(0x00); // PANEL SETTING
-    sendData(0x3F); //KW-3f   KWR-2F	BWR-OTP 0f	BW-OTP 1f
-
-    sendCommand(0x61); //tres
-    sendData(0x03); //source 800
-    sendData(0x20);
-    sendData(0x01); //gate 480
-    sendData(0xE0);
-
-    sendCommand(0x15);
-    sendData(0x00);
-
-    sendCommand(0x50); //VCOM AND DATA INTERVAL SETTING
-    sendData(0x10);
-    sendData(0x00);
-
-    sendCommand(0x60); //TCON SETTING
-    sendData(0x22);
-
-    sendCommand(0x65); // Resolution setting
-    sendData(0x00);
-    sendData(0x00); //800*480
-    sendData(0x00);
-    sendData(0x00);
-
-    _sendLut(LUT_VCOM_7IN5_V2, LUT_WW_7IN5_V2, LUT_BW_7IN5_V2, LUT_WB_7IN5_V2, LUT_BB_7IN5_V2);
   }
 
-  /// Clear screen
-  void clear() {
-    print('clear');
-    int length = (EPD_WIDTH / 8).ceil() * EPD_HEIGHT;
-    sendCommand(0x10);
-    sendDataFilled(0xFF, length);
-    sendCommand(0x13);
-    sendDataFilled(0x00, length);
-    turnOnDisplay();
+  void displayFrameQuick() {
+    setLutQuick();
+    sendCommand(EpdCommand.DISPLAY_REFRESH);
+    // delayMs(100);
+    // waitUntilIdle();
   }
 
-  /// Clear Black screen
-  void clearBlack() {
-    print('clearBlack');
-    int length = (EPD_WIDTH / 8).ceil() * EPD_HEIGHT;
-    sendCommand(0x10);
-    sendDataFilled(0x00, length);
-    sendCommand(0x13);
-    sendDataFilled(0xFF, length);
-    turnOnDisplay();
-  }
-
-  /// Sends the image buffer in RAM to e-Paper and displays
-  void display(List<int> black, List<int> red) {
-    print('display');
-    int length = (EPD_WIDTH / 8).ceil() * EPD_HEIGHT;
-    if (black.length != length || red.length != length) {
-      throw Exception();
-    }
-    sendCommand(0x10);
-    sendDataMulti(black);
-    sendCommand(0x13);
-    sendDataMulti(red);
-    turnOnDisplay();
-  }
-
+  /// After this command is transmitted, the chip would enter the deep-sleep mode to save power.
+  /// The deep sleep mode would return to standby by hardware reset. The only one parameter is a
+  /// check code, the command would be executed if check code = 0xA5.
+  /// You can use [reset] to awaken and use [init] to initialize.
   void sleep() {
-    print('power off');
-    sendCommand(0x02); // power off
+    sendCommand(EpdCommand.VCOM_AND_DATA_INTERVAL_SETTING);
+    sendData(0x17); // border floating
+    sendCommand(EpdCommand.VCM_DC_SETTING); // VCOM to 0V
+    sendCommand(EpdCommand.PANEL_SETTING);
+    delayMs(100);
+
+    sendCommand(EpdCommand.POWER_SETTING); // VG&VS to 0V fast
+    sendData(0x00);
+    sendData(0x00);
+    sendData(0x00);
+    sendData(0x00);
+    sendData(0x00);
+    delayMs(100);
+
+    sendCommand(EpdCommand.POWER_OFF);
     waitUntilIdle();
-    print('deep sleep');
-    sendCommand(0x07); // deep sleep
-    sendData(0xA5);
+    sendCommand(EpdCommand.DEEP_SLEEP);
+    sendData(0xa5);
   }
+}
+
+enum EpdCommand {
+  PANEL_SETTING(0x00),
+  POWER_SETTING(0x01),
+  POWER_OFF(0x02),
+  POWER_OFF_SEQUENCE_SETTING(0x03),
+  POWER_ON(0x04),
+  POWER_ON_MEASURE(0x05),
+  BOOSTER_SOFT_START(0x06),
+  DEEP_SLEEP(0x07),
+  DATA_START_TRANSMISSION_1(0x10),
+  DATA_STOP(0x11),
+  DISPLAY_REFRESH(0x12),
+  DATA_START_TRANSMISSION_2(0x13),
+  DUAL_SPI(0x15),
+  LUT_FOR_VCOM(0x20),
+  LUT_WHITE_TO_WHITE(0x21),
+  LUT_BLACK_TO_WHITE(0x22),
+  LUT_WHITE_TO_BLACK(0x23),
+  LUT_BLACK_TO_BLACK(0x24),
+  PLL_CONTROL(0x30),
+  TEMPERATURE_SENSOR_COMMAND(0x40),
+  TEMPERATURE_SENSOR_SELECTION(0x41),
+  TEMPERATURE_SENSOR_WRITE(0x42),
+  TEMPERATURE_SENSOR_READ(0x43),
+  VCOM_AND_DATA_INTERVAL_SETTING(0x50),
+  LOW_POWER_DETECTION(0x51),
+  TCON_SETTING(0x60),
+  RESOLUTION_SETTING(0x61),
+  GSST_SETTING(0x65),
+  GET_STATUS(0x71),
+  AUTO_MEASUREMENT_VCOM(0x80),
+  READ_VCOM_VALUE(0x81),
+  VCM_DC_SETTING(0x82),
+  PARTIAL_WINDOW(0x90),
+  PARTIAL_IN(0x91),
+  PARTIAL_OUT(0x92),
+  PROGRAM_MODE(0xa0),
+  ACTIVE_PROGRAMMING(0xa1),
+  READ_OTP(0xa2),
+  POWER_SAVING(0xe3),
+  UNKNOWN_97(0x97),
+  ;
+
+  final int register;
+
+  const EpdCommand(this.register);
+
+  @override
+  String toString() => '$name(0x${register.toRadixString(16).padLeft(2, '0')})';
 }
 
 // @formatter:off
 
-const Voltage_Frame_7IN5_V2 = <int>[
-	0x6, 0x3F, 0x3F, 0x11, 0x24, 0x7, 0x17,
+const lut_vcom0 = <int>[
+  0x40, 0x17, 0x00, 0x00, 0x00, 0x02,
+  0x00, 0x17, 0x17, 0x00, 0x00, 0x02,
+  0x00, 0x0A, 0x01, 0x00, 0x00, 0x01,
+  0x00, 0x0E, 0x0E, 0x00, 0x00, 0x02,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-const LUT_VCOM_7IN5_V2 = <int>[
-	0x0,	0xF,	0xF,	0x0,	0x0,	0x1,
-	0x0,	0xF,	0x1,	0xF,	0x1,	0x2,
-	0x0,	0xF,	0xF,	0x0,	0x0,	0x1,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+const lut_vcom0_quick = <int>[
+  0x00, 0x0E, 0x00, 0x00, 0x00, 0x01,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-const LUT_WW_7IN5_V2 = <int>[
-	0x10,	0xF,	0xF,	0x0,	0x0,	0x1,
-	0x84,	0xF,	0x1,	0xF,	0x1,	0x2,
-	0x20,	0xF,	0xF,	0x0,	0x0,	0x1,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+const lut_ww = <int>[
+  0x40, 0x17, 0x00, 0x00, 0x00, 0x02,
+  0x90, 0x17, 0x17, 0x00, 0x00, 0x02,
+  0x40, 0x0A, 0x01, 0x00, 0x00, 0x01,
+  0xA0, 0x0E, 0x0E, 0x00, 0x00, 0x02,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-const LUT_BW_7IN5_V2 = <int>[
-	0x10,	0xF,	0xF,	0x0,	0x0,	0x1,
-	0x84,	0xF,	0x1,	0xF,	0x1,	0x2,
-	0x20,	0xF,	0xF,	0x0,	0x0,	0x1,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+const lut_ww_quick = <int>[
+  0xA0, 0x0E, 0x00, 0x00, 0x00, 0x01,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-const LUT_WB_7IN5_V2 = <int>[
-	0x80,	0xF,	0xF,	0x0,	0x0,	0x1,
-	0x84,	0xF,	0x1,	0xF,	0x1,	0x2,
-	0x40,	0xF,	0xF,	0x0,	0x0,	0x1,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+const lut_bw = <int>[
+  0x40, 0x17, 0x00, 0x00, 0x00, 0x02,
+  0x90, 0x17, 0x17, 0x00, 0x00, 0x02,
+  0x40, 0x0A, 0x01, 0x00, 0x00, 0x01,
+  0xA0, 0x0E, 0x0E, 0x00, 0x00, 0x02,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-const LUT_BB_7IN5_V2 = <int>[
-	0x80,	0xF,	0xF,	0x0,	0x0,	0x1,
-	0x84,	0xF,	0x1,	0xF,	0x1,	0x2,
-	0x40,	0xF,	0xF,	0x0,	0x0,	0x1,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
-	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+const lut_bw_quick = <int>[
+  0xA0, 0x0E, 0x00, 0x00, 0x00, 0x01,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+const lut_bb = <int>[
+  0x80, 0x17, 0x00, 0x00, 0x00, 0x02,
+  0x90, 0x17, 0x17, 0x00, 0x00, 0x02,
+  0x80, 0x0A, 0x01, 0x00, 0x00, 0x01,
+  0x50, 0x0E, 0x0E, 0x00, 0x00, 0x02,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+const lut_bb_quick = <int>[
+  0x50, 0x0E, 0x00, 0x00, 0x00, 0x01,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+const lut_wb = <int>[
+  0x80, 0x17, 0x00, 0x00, 0x00, 0x02,
+  0x90, 0x17, 0x17, 0x00, 0x00, 0x02,
+  0x80, 0x0A, 0x01, 0x00, 0x00, 0x01,
+  0x50, 0x0E, 0x0E, 0x00, 0x00, 0x02,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+const lut_wb_quick = <int>[
+  0x50, 0x0E, 0x00, 0x00, 0x00, 0x01,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
 // @formatter:on

@@ -11,18 +11,16 @@ void main(List<String> args) {
   final sig = ProcessSignal.sigint.watch().listen((event) {
     print('Ctrl+C pressed');
     // display.sleep();
-    // display.close();
+    // display.close();:wq
     exit(-1);
   });
   try {
-    display.open();
-    display.clear();
-    display.delayMs(100);
-    display.clearBlack();
-    display.delayMs(100);
-    display.display(black.data, red.data);
-    display.delayMs(200);
-    display.clear();
+    display.init();
+    display.clearFrame();
+    display.displayFrame();
+    display.delayMs(20);
+    display.displayFrameBuffer(red.data);
+    display.delayMs(2000);
   } finally {
     display.sleep();
     display.close();

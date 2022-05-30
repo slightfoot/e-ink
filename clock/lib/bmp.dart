@@ -58,6 +58,7 @@ class BitmapFileHeader extends Struct {
   @Uint32()
   external int size;
   @Uint32()
+  // ignore: unused_field
   external int _reserved;
   @Uint32()
   external int offset;
