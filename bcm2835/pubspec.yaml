@@ -10,7 +10,7 @@ dependencies:
 
 dev_dependencies:
   lints: ^2.0.0
-  ffigen: ^5.0.0
+  ffigen: ^6.0.0
 
 # execute with: dart run ffigen
 ffigen:

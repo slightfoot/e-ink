@@ -1,5 +1,5 @@
-name: clock
-description: Sample application of using e-Paper display on Raspberry Pi
+name: epd
+description: e-Paper Display Driver for Raspberry Pi
 version: 1.0.0
 publish_to: none
 
@@ -8,9 +8,8 @@ environment:
 
 dependencies:
   ffi: ^1.2.1
-  hotreloader: ^3.0.4
-  epd:
-    path: ../epd/
+  bcm2835:
+    path: ../bcm2835/
 
 dev_dependencies:
   lints: ^2.0.0

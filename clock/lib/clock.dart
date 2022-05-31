@@ -1,30 +1,45 @@
-import 'dart:io';
-
 import 'package:clock/bmp.dart';
-import 'package:clock/rpi/epd.dart';
+import 'package:epd/epd.dart';
 
-void main(List<String> args) {
-  final black = MonoBitmap.loadAsset('assets/black.bmp');
-  final red = MonoBitmap.loadAsset('assets/red.bmp');
-  print('finished loading.');
-  final display = EPaperDisplay();
-  final sig = ProcessSignal.sigint.watch().listen((event) {
-    print('Ctrl+C pressed');
-    // display.sleep();
-    // display.close();:wq
-    exit(-1);
-  });
-  try {
-    display.init();
-    display.clearFrame();
-    display.displayFrame();
-    display.delayMs(20);
-    display.displayFrameBuffer(red.data);
-    display.delayMs(2000);
-  } finally {
-    display.sleep();
-    display.close();
+class Clock {
+  Clock() {
+    display = EPaperDisplay(EPaperDisplayInterface.epd7in5v3());
+    image1 = MonoBitmap.loadAsset('assets/black.bmp');
+    image2 = MonoBitmap.loadAsset('assets/red.bmp');
   }
-  print('done main');
-  sig.cancel();
+
+  late EPaperDisplay display;
+  late MonoBitmap image1;
+  late MonoBitmap image2;
+
+  bool _stopped = false;
+
+  Future<void> run() async {
+    print('running...');
+    try {
+      display.wake();
+      display.clearFrame();
+      display.displayFrame();
+      display.delayMs(20);
+      display.displayFrameBuffer(image2.data);
+      display.delayMs(20);
+
+      int tick = 0;
+      while (!_stopped) {
+        print('tick $tick');
+        tick++;
+        await Future.delayed(const Duration(seconds: 1));
+      }
+    } finally {
+      display.sleep();
+      display.dispose();
+    }
+    print('finished');
+  }
+
+  void stop() {
+    display.sleep();
+    display.dispose();
+    _stopped = true;
+  }
 }
