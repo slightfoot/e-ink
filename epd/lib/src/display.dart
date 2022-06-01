@@ -1,19 +1,20 @@
 import 'dart:ffi' as ffi;
-import 'dart:typed_data';
 import 'dart:math' as math;
-import 'interface.dart';
-import 'package:ffi/ffi.dart' as ffi;
+import 'dart:io' as io;
 
+import 'package:ffi/ffi.dart' as ffi;
 import 'package:bcm2835/bcm2835.dart';
+
+import 'interface.dart';
 
 typedef EpdPartialGroupUpdate = void Function();
 
-class EPaperDisplay {
-  EPaperDisplay(this.interface) {
+class EpdDisplay {
+  EpdDisplay(this.interface) {
     _init();
   }
 
-  final EPaperDisplayInterface interface;
+  final EpdDisplayInterface interface;
   late final ffi.Pointer<ffi.Uint8> _txBuffer;
   late final Bcm2835 _bcm2835;
   _LutSelection? _lutSelection;
@@ -28,7 +29,7 @@ class EPaperDisplay {
 
   void _digitalMode(int pin, int mode) => _bcm2835.gpio_fsel(pin, mode);
 
-  void delayMs(int ms) => _bcm2835.delay(ms);
+  void delayMs(int milliseconds) => io.sleep(Duration(milliseconds: milliseconds));
 
   /// Writes a single byte to the SPI bus and asserts the CS pin.
   int _spiWriteByte(int value) {
@@ -160,7 +161,7 @@ class EPaperDisplay {
   }
 
   /// Wake up and access the E-Paper display
-  void wake() {
+  void wake({bool useCustomLut = true}) {
     _debug('wake');
     reset();
 
@@ -181,7 +182,8 @@ class EPaperDisplay {
     waitUntilIdle();
 
     sendCommand(EpdCommand.PANEL_SETTING);
-    sendData(0x3f); // LUT(REG), KWR, UD(UP), SHL(RIGHT), SHD_N(ON), RST_N(OFF)
+    sendData(
+        useCustomLut ? 0x3f : 0x1f); // LUT(REG), KWR, UD(UP), SHL(RIGHT), SHD_N(ON), RST_N(OFF)
 
     sendCommand(EpdCommand.PLL_CONTROL);
     sendData(0x0c); // 110Hz
@@ -256,9 +258,8 @@ class EPaperDisplay {
     }
 
     setResolution(interface.width, interface.height);
-    // sendCommand(EpdCommand.VCM_DC_SETTING);
-    // sendData(0x12);
-    // sendCommand(EpdCommand.VCOM_AND_DATA_INTERVAL_SETTING);
+    sendCommand(EpdCommand.VCM_DC_SETTING);
+    sendData(0x12);
 
     sendCommand(EpdCommand.DATA_START_TRANSMISSION_1);
     sendDataFilled(0xff, interface.bufferSize);
@@ -270,39 +271,17 @@ class EPaperDisplay {
   }
 
   // Clear the frame data from the SRAM (this won't refresh the display!)
-  void clearFrame() {
+  void clearFrame({bool colored = false}) {
     setResolution(interface.width, interface.height);
     sendCommand(EpdCommand.DATA_START_TRANSMISSION_1);
     delayMs(2);
-    sendDataFilled(0xff, interface.bufferSize);
+    sendDataFilled(colored ? 0x00 : 0xff, interface.bufferSize);
     delayMs(2);
     sendCommand(EpdCommand.DATA_START_TRANSMISSION_2);
     delayMs(2);
-    sendDataFilled(0xff, interface.bufferSize);
+    sendDataFilled(colored ? 0x00 : 0xff, interface.bufferSize);
     delayMs(2);
   }
-
-  // /// Clear screen
-  // void clear() {
-  //   _debug('clear');
-  //   int length = (EPD_WIDTH / 8).ceil() * EPD_HEIGHT;
-  //   sendCommand(EpdCommand.DATA_START_TRANSMISSION_1);
-  //   sendDataFilled(0xFF, length);
-  //   sendCommand(EpdCommand.DATA_START_TRANSMISSION_2);
-  //   sendDataFilled(0x00, length);
-  //   displayFrame();
-  // }
-  //
-  // /// Clear Black screen
-  // void clearBlack() {
-  //   _debug('clearBlack');
-  //   int length = (EPD_WIDTH / 8).ceil() * EPD_HEIGHT;
-  //   sendCommand(EpdCommand.DATA_START_TRANSMISSION_1);
-  //   sendDataFilled(0x00, length);
-  //   sendCommand(EpdCommand.DATA_START_TRANSMISSION_2);
-  //   sendDataFilled(0xFF, length);
-  //   displayFrame();
-  // }
 
   ///
   void groupPartialUpdate(EpdPartialGroupUpdate update) {
@@ -327,25 +306,17 @@ class EPaperDisplay {
   }
 
   void doPartialWindow(List<int>? data, int x, int y, int w, int h, EpdPartialMode mode) {
-    sendCommand(EpdCommand.PARTIAL_WINDOW);
-    final window = Uint8ClampedList(9);
-    // x will always be to the nearest 8 pixels
-    final xStart = (x & ~0x07);
-    final xEnd = (xStart + w - 1) | 0x07;
-    final yStart = y;
-    final yEnd = (yStart + h - 1);
-    window.setAll(0, [
-      (xStart >> 8) & 0x03, xStart,
-      (xEnd >> 8) & 0x03, xEnd,
-      (yStart >> 8) & 0x03, yStart,
-      (yEnd >> 8) & 0x03, yEnd,
-      0x01, // Gates scan both inside and outside of the partial window. (default)
-    ]);
-    sendDataMulti(window);
+    final length = w ~/ 8 * h;
+    // _setPartialRamArea(x, y, w, h);
+    // sendCommand(mode != EpdPartialMode.buffer1
+    //     ? EpdCommand.DATA_START_TRANSMISSION_1
+    //     : EpdCommand.DATA_START_TRANSMISSION_2);
+    // sendDataFilled(0xff, length);
+    // delayMs(2);
+    _setPartialRamArea(x, y, w, h);
     sendCommand(mode == EpdPartialMode.buffer1
         ? EpdCommand.DATA_START_TRANSMISSION_1
         : EpdCommand.DATA_START_TRANSMISSION_2);
-    final length = w ~/ 8 * h;
     if (data != null) {
       if (data.length == length) {
         sendDataMulti(data);
@@ -355,6 +326,28 @@ class EPaperDisplay {
     } else {
       sendDataFilled(0x00, length);
     }
+    delayMs(2);
+  }
+
+  void _setPartialRamArea(int x, int y, int w, int h) {
+    int xe = (x + w - 1) | 0x07;
+    int ye = y + h - 1;
+    x &= 0xFFF8;
+    xe |= 0x07;
+
+    /// FIXME: this is currently buggy when doing partial updates to a non-8pixel aligned x
+    // print('ram area: $x -> $xe = ${xe - x} == $w');
+
+    sendCommand(EpdCommand.PARTIAL_WINDOW); // partial window
+    sendData(x ~/ 256);
+    sendData(x % 256);
+    sendData(xe ~/ 256);
+    sendData(xe % 256);
+    sendData(y ~/ 256);
+    sendData(y % 256);
+    sendData(ye ~/ 256);
+    sendData(ye % 256);
+    sendData(0x00); // 0x00 = Scan only partial window, 0x01 = Scan all pixels
   }
 
   /// This displays the frame data from SRAM

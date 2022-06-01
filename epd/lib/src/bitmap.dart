@@ -2,26 +2,35 @@ import 'dart:io';
 import 'dart:ffi';
 import 'dart:typed_data';
 
+import 'package:epd/src/image.dart';
 import 'package:ffi/ffi.dart';
 
 const _BI_MONOCHROME = 1;
 
-class MonoBitmap {
-  MonoBitmap(this.header, this.info, this.data);
+class EpdBitmap extends EpdImage {
+  EpdBitmap(this.header, this.info, this.image);
 
   final BitmapFileHeader header;
   final BitmapInfoHeader info;
-  final Uint8List data;
 
-  static MonoBitmap loadAsset(String asset) {
+  @override
+  int get width => info.width;
+
+  @override
+  int get height => info.height;
+
+  @override
+  final Uint8List image;
+
+  static EpdBitmap loadAsset(String asset) {
     return loadFile(File(asset));
   }
 
-  static MonoBitmap loadFile(File file) {
+  static EpdBitmap loadFile(File file) {
     return loadData(file.readAsBytesSync());
   }
 
-  static MonoBitmap loadData(Uint8List file) {
+  static EpdBitmap loadData(Uint8List file) {
     final ptr = malloc<Uint8>(file.length);
     ptr.asTypedList(file.length).setAll(0, file);
     final header = ptr.cast<BitmapFileHeader>().ref;
@@ -39,15 +48,16 @@ class MonoBitmap {
 
     // Bitmap files are stored bottom-to-top (as such the last row of the image is at the top)
     // We need to flip the rows around in the raw data as we use it top-to-bottom.
-    final flipped = Uint8List(info.sizeImage);
-    final strideInBytes = info.width ~/ 8; // 1bit per pixel
+    final widthInBytes = (info.width / 8).ceil(); // 1bit per pixel
+    final strideInBytes = (widthInBytes / 4).ceil() * 4;
+    final flipped = Uint8List(widthInBytes * info.height);
     for (int y = 0; y < info.height; y++) {
       final from = (info.height - y - 1) * strideInBytes;
-      final to = y * strideInBytes;
-      flipped.setRange(to, to + strideInBytes, data.getRange(from, from + strideInBytes));
+      final to = y * widthInBytes;
+      flipped.setRange(to, to + widthInBytes, data.getRange(from, from + widthInBytes));
     }
 
-    return MonoBitmap(header, info, flipped);
+    return EpdBitmap(header, info, flipped);
   }
 }
 

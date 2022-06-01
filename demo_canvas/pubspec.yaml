@@ -1,0 +1,16 @@
+name: demo_canvas
+description: Canvas demo application of using e-Paper display on Raspberry Pi
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: '>=2.17.0 <3.0.0'
+
+dependencies:
+  demo:
+    path: ../demo/
+  epd:
+    path: ../epd/
+
+dev_dependencies:
+  lints: ^2.0.0

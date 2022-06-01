@@ -1,8 +1,8 @@
 typedef EPaperDebug = void Function(dynamic value);
 
-class EPaperDisplayInterface {
-  factory EPaperDisplayInterface.epd7in5v3([EPaperDebug? debug]) {
-    return EPaperDisplayInterface(
+class EpdDisplayInterface {
+  factory EpdDisplayInterface.epd7in5v3([EPaperDebug? debug]) {
+    return EpdDisplayInterface(
       width: 800,
       height: 480,
       resetPin: 17,
@@ -13,7 +13,7 @@ class EPaperDisplayInterface {
     );
   }
 
-  EPaperDisplayInterface({
+  EpdDisplayInterface({
     required this.width,
     required this.height,
     required this.resetPin,
@@ -33,6 +33,12 @@ class EPaperDisplayInterface {
 
   /// Height of display in pixels
   final int height;
+
+  /// Center X of display in pixels
+  int get cx => width ~/ 2;
+
+  /// Center Y of display in pixels
+  int get cy => height ~/ 2;
 
   /// Frame buffer size in bytes
   late final int bufferSize;

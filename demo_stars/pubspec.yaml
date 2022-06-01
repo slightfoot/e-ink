@@ -1,5 +1,5 @@
-name: clock
-description: Sample application of using e-Paper display on Raspberry Pi
+name: demo_stars
+description: Canvas demo application of using e-Paper display on Raspberry Pi
 version: 1.0.0
 publish_to: none
 
@@ -7,8 +7,8 @@ environment:
   sdk: '>=2.17.0 <3.0.0'
 
 dependencies:
-  ffi: ^1.2.1
-  hotreloader: ^3.0.4
+  demo:
+    path: ../demo/
   epd:
     path: ../epd/
 

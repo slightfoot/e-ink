@@ -1,0 +1,14 @@
+name: eink
+repository: https://github.com/slightfoot/e-ink
+packages:
+  - bcm2835/**
+  - demo/**
+  - demo_canvas/**
+  - demo_clock/**
+  - demo_stars/**
+  - epd/**
+
+scripts:
+  pubget:
+    run: melos exec dart pub get
+    description: Runs pub get on all modules
