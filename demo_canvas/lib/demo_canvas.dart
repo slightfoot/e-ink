@@ -2,25 +2,39 @@ import 'package:demo/demo.dart';
 import 'package:epd/epd.dart';
 
 class CanvasDemo extends DemoRunner {
-  CanvasDemo(this.args) {
-    _display = EpdDisplay(EpdDisplayInterface.epd7in5v3());
-    _bitmap = EpdBitmap.loadAsset('assets/geekle.bmp');
-  }
+  CanvasDemo(this.args);
 
   final List<String> args;
-  late EpdDisplay _display;
-  late EpdBitmap _bitmap;
 
   @override
   Future<void> run() async {
-    _display.wake();
-    _display.clearFrame();
-    _display.displayFrame();
+    print('running');
+    final display = EpdDisplay(EpdDisplayInterface.epd7in5v3());
+    final geekle = EpdBitmap.loadAsset('assets/geekle.bmp');
+    display.wake();
+    display.clearFrame();
+    display.displayFrame();
     if (args.isEmpty) {
-      _display.displayFrameBuffer(_bitmap.image);
-      _display.waitUntilIdle();
+      display.displayFrameBuffer(geekle.image);
+      display.waitUntilIdle();
     }
-    _display.sleep();
-    _display.dispose();
+    display.sleep();
+    display.dispose();
+    print('finished');
   }
 }
+
+
+
+
+
+
+
+// final display = EpdDisplay(EpdDisplayInterface.epd7in5v3(debug: print, mode: EpdMode.kwrOtp));
+// final red = EpdBitmap.loadAsset('assets/red.bmp');
+// final black = EpdBitmap.loadAsset('assets/black.bmp');
+// display.wake();
+// display.displayFrameBuffer(black.image, red.image);
+// display.waitUntilIdle();
+// display.sleep();
+// display.dispose();

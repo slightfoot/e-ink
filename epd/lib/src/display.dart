@@ -121,14 +121,14 @@ class EpdDisplay {
 
   /// Send buffer of data filled with the same [data] value of [length] bytes.
   void sendDataFilled(int data, int length) {
-    _debug('sendDataFilled(0x${data.toHex()}, $length');
+    _debug('sendDataFilled(0x${data.toHex()}, $length)');
     _digitalWrite(interface.dataCommandPin, true);
     _spiWriteBytes(List.filled(length, data));
   }
 
   /// Send multi bytes of [data]
   void sendDataMulti(List<int> data) {
-    _debug('sendDataMulti(${data.length}');
+    _debug('sendDataMulti(${data.length})');
     _digitalWrite(interface.dataCommandPin, true);
     _spiWriteBytes(data);
   }
@@ -161,7 +161,7 @@ class EpdDisplay {
   }
 
   /// Wake up and access the E-Paper display
-  void wake({bool useCustomLut = true}) {
+  void wake() {
     _debug('wake');
     reset();
 
@@ -181,9 +181,10 @@ class EpdDisplay {
     sendCommand(EpdCommand.POWER_ON);
     waitUntilIdle();
 
+    // 0x0f = KWR-OTP, 0x1f = KW-OTP, 0x2f = KWR-LUT, 0x3f = KW-OTP
     sendCommand(EpdCommand.PANEL_SETTING);
-    sendData(
-        useCustomLut ? 0x3f : 0x1f); // LUT(REG), KWR, UD(UP), SHL(RIGHT), SHD_N(ON), RST_N(OFF)
+    // LUT(REG), KWR, UD(UP), SHL(RIGHT), SHD_N(ON), RST_N(OFF)
+    sendData(interface.mode.registerValue | 0x0f);
 
     sendCommand(EpdCommand.PLL_CONTROL);
     sendData(0x0c); // 110Hz
@@ -208,6 +209,9 @@ class EpdDisplay {
 
   /// Set the Look-Up-Tables
   void setLutNormal() {
+    if (!interface.mode.hasLut) {
+      return;
+    }
     if (_lutSelection == _LutSelection.Normal) {
       return;
     }
@@ -226,6 +230,9 @@ class EpdDisplay {
 
   /// Set the Look-Up-Tables for quick display (partial refresh)
   void setLutQuick() {
+    if (!interface.mode.hasLut) {
+      return;
+    }
     if (_lutSelection == _LutSelection.Quick) {
       return;
     }
@@ -252,7 +259,7 @@ class EpdDisplay {
   }
 
   /// Refresh and displays a frame
-  void displayFrameBuffer(List<int> frameBuffer) {
+  void displayFrameBuffer(List<int> frameBuffer, [List<int>? backBuffer]) {
     if (frameBuffer.length != interface.bufferSize) {
       throw Exception('Invalid frame buffer size: ${frameBuffer.length}');
     }
@@ -262,10 +269,18 @@ class EpdDisplay {
     sendData(0x12);
 
     sendCommand(EpdCommand.DATA_START_TRANSMISSION_1);
-    sendDataFilled(0xff, interface.bufferSize);
+    if (backBuffer != null) {
+      sendDataMulti(frameBuffer);
+    } else {
+      sendDataFilled(0xff, interface.bufferSize);
+    }
     delayMs(2);
     sendCommand(EpdCommand.DATA_START_TRANSMISSION_2);
-    sendDataMulti(frameBuffer);
+    if (backBuffer != null) {
+      sendDataMulti(backBuffer);
+    } else {
+      sendDataMulti(frameBuffer);
+    }
     delayMs(2);
     displayFrame();
   }
