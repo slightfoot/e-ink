@@ -1,11 +1,10 @@
 ## E-Ink and Beyond
 
+E-Ink / E-Paper driver for Waveshare 7.5" display connected to Raspberry Pi 4B.
+
 <img src="https://user-images.githubusercontent.com/906564/171627566-85ace058-0a03-46a9-abe7-ffaae5a19469.jpg" width=580 height=456>
 
 <img src="https://user-images.githubusercontent.com/906564/171958716-625a2565-377c-4936-88ea-5d8bb0869ba9.jpg" width=580 height=368>
-
-
-E-Ink / E-Paper driver for Waveshare 7.5in Display connected to Raspberry Pi 4B
 
 Talk first given @ Flutter Global Summit 22 - 2nd June 2022
 
