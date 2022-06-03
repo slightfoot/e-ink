@@ -185,8 +185,6 @@ class DigitalDisplay {
       dx += digit.width;
     }
 
-    time = time.add(const Duration(hours: 12));
-
     final date = _format.format(time);
     final dx = _canvas.cx - (_canvas.measureText(date, font20) ~/ 2);
     _canvas.drawText(dx, 68, _format.format(time), font20, true);
